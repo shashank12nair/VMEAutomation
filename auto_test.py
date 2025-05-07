@@ -104,14 +104,14 @@ class InteractiveDemo:
         print(f'Value: {value:08x}')
         return value
 
-    def write_cycle(self):
+    def write_cycle(self, write_addr, write_data):
         """Write cycle"""
         print(f'VME base address: {self.__vme_base_address:08x}')
         print(f'Address modifier: {self.__address_modifier.name}')
         print(f'Data width: {self.__data_width.name}')
         try:
-            address = int(input('Set address: 0x'), 16)
-            value = int(input('Set value: 0x'), 16)
+            address = int(write_addr, 16)
+            value = int(write_data, 16)
         except ValueError as ex:
             print(f'Invalid input: {ex}')
             return
@@ -188,7 +188,7 @@ with vme.Device.open(boardtype, linknumber, conetnode) as device:
     # Output CSV path
     csv_filename = "vme_data_output.csv"
     valid_data_count = 0
-    max_count = 15
+    max_count = 16
     output_data = []
 
     print("Starting data acquisition...")
@@ -197,7 +197,16 @@ with vme.Device.open(boardtype, linknumber, conetnode) as device:
         writer = csv.writer(file)
         writer.writerow(["Data"])
 
-    while valid_data_count < max_count:
+    demo.set_data_width("D16")
+    time.sleep(0.1)
+    demo.write_cycle("1032", "4") #clearing the data by writing to the "bit set 2 register"
+    time.sleep(0.5)
+    demo.write_cycle("1034", "4") #disabling the "bit set 2" enabled bit by writing to the "bit clear 2" register
+    time.sleep(0.5)
+    demo.write_cycle("1040", "0") #clearing the event counter register
+
+
+    while valid_data_count <max_count:
         # Step 1: Read the status register
         demo.set_data_width("D16")
         time.sleep(0.1)
@@ -225,20 +234,24 @@ with vme.Device.open(boardtype, linknumber, conetnode) as device:
                     writer = csv.writer(file)
                     for i, val in enumerate(output_data):
                         writer.writerow([i + 1, f"{val:08X}"])
+
+
+
             else:
                 print("Data rejected due to bits 24-26")
 
         # Optional: Sleep briefly to avoid CPU hogging
         time.sleep(1)
 
-    # Save collected data to CSV
-    # with open(csv_filename, mode='w', newline='') as file:
-    #     writer = csv.writer(file)
-    #     writer.writerow(["Data"])
-    #     for i, val in enumerate(output_data):
-    #         writer.writerow([i + 1, f"{val:08X}"])
+    demo.set_data_width("D32")
+    time.sleep(0.1)
+    data_word = demo.read_cycle("0000")
 
-    print(f"Data acquisition complete. {valid_data_count} entries saved to {csv_filename}")
+    if(data_word >> 24) & 0x7 == 4:
+        counter = data_word & 0xFFFFFF
+
+
+    print(f"Data acquisition complete. {valid_data_count} entries saved to {csv_filename}, counter value {int(counter)}")
 
 
 
