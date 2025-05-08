@@ -1,60 +1,12 @@
-#!/usr/bin/env python3
-"""
-Python demo for CAEN VMELib
-
-
-The demo aims to show the user how to work with the CAEN VMELib library in Python.
-The user can cofigure the parameter for the VME operation, and then launch it.
-The demo is able to perform a VME Read Cycle, a VME Write Cycle and a VME BLT Read Cycle.
-"""
-
-__author__ = 'Matteo Bianchini'
-__copyright__ = 'Copyright (C) 2024 CAEN SpA'
-__license__ = 'MIT-0'
-# SPDX-License-Identifier: MIT-0
-__contact__ = 'https://www.caen.it/'
-
 from dataclasses import dataclass, field
 import sys
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+import csv
+import time
 
 from caen_libs import caenvme as vme
 print("Library version:", vme.lib.sw_release())
 
-# # Parse arguments
-# parser = ArgumentParser(
-#     description=__doc__,
-#     formatter_class=ArgumentDefaultsHelpFormatter,
-# )
-#
-# # Shared parser for subcommands
-# parser.add_argument('-b', '--boardtype', type=str, help='board type', required=True, choices=tuple(i.name for i in vme.BoardType))
-# parser.add_argument('-l', '--linknumber', type=str, help='link number, PID or hostname (depending on connectiontype)', required=True)
-# parser.add_argument('-n', '--conetnode', type=int, help='CONET node', default=0)
-#
-# args = parser.parse_args()
 
-
-
-print("Available board types:")
-for bt in vme.BoardType:
-    print(f"- {bt.name}")
-
-while True:
-    boardtype_input = input("Enter board type: ").strip()
-    if boardtype_input in vme.BoardType.__members__:
-        boardtype = vme.BoardType[boardtype_input]
-        break
-    else:
-        print("Invalid board type. Please try again.")
-
-linknumber = input("Enter link number (usually '0' for USB): ").strip()
-
-try:
-    conetnode = int(input("Enter CONET node [default 0]: ") or "0")
-except ValueError:
-    print("Invalid CONET node. Defaulting to 0.")
-    conetnode = 0
 
 
 
@@ -74,37 +26,37 @@ class InteractiveDemo:
     __address_modifier: vme.AddressModifiers = field(default=vme.AddressModifiers.A32_U_DATA)
     __data_width: vme.DataWidth = field(default=vme.DataWidth.D32)
 
-    def set_vme_baseaddress(self):
+    def set_vme_baseaddress(self,  base_addr=None):
         """Set VME base address"""
         print(f'Current value: {self.__vme_base_address:08x}')
         try:
-            self.__vme_base_address = int(input('Set VME base address: 0x'), 16)
+            self.__vme_base_address = int(base_addr, 16)
         except ValueError as ex:
             print(f'Invalid value: {ex}')
 
-    def set_address_modifier(self):
+    def set_address_modifier(self, addr_mode):
         """Set address modifier"""
         print(f'Current value: {self.__address_modifier.name}')
         try:
-            self.__address_modifier = vme.AddressModifiers[input('Set address modifier: ')]
+            self.__address_modifier = vme.AddressModifiers[addr_mode]
         except KeyError as ex:
             print(f'Invalid value: {ex}')
 
-    def set_data_width(self):
+    def set_data_width(self, data_width):
         """Set data width"""
         print(f'Current value: {self.__data_width.name}')
         try:
-            self.__data_width = vme.DataWidth[input('Set data width: ')]
+            self.__data_width = vme.DataWidth[data_width]
         except KeyError as ex:
             print(f'Invalid value: {ex}')
 
-    def read_cycle(self):
+    def read_cycle(self, read_addr):
         """Read cycle"""
         print(f'VME base address: {self.__vme_base_address:08x}')
         print(f'Address modifier: {self.__address_modifier.name}')
         print(f'Data width: {self.__data_width.name}')
         try:
-            address = int(input('Set address: 0x'), 16)
+            address = int(read_addr, 16)
         except ValueError as ex:
             print(f'Invalid input: {ex}')
             return
@@ -114,15 +66,16 @@ class InteractiveDemo:
             print(f'Failed: {ex}')
             return
         print(f'Value: {value:08x}')
+        return value
 
-    def write_cycle(self):
+    def write_cycle(self, write_addr, write_data):
         """Write cycle"""
         print(f'VME base address: {self.__vme_base_address:08x}')
         print(f'Address modifier: {self.__address_modifier.name}')
         print(f'Data width: {self.__data_width.name}')
         try:
-            address = int(input('Set address: 0x'), 16)
-            value = int(input('Set value: 0x'), 16)
+            address = int(write_addr, 16)
+            value = int(write_data, 16)
         except ValueError as ex:
             print(f'Invalid input: {ex}')
             return
@@ -183,35 +136,3 @@ def _quit():
     """Quit"""
     print('Quitting...')
     sys.exit()
-
-
-# with vme.Device.open(vme.BoardType["V1718"], "0", 0) as device:
-
-with vme.Device.open(boardtype, linknumber, conetnode) as device:
-
-    demo = InteractiveDemo(device)
-
-    menu_items = {
-        'b': demo.set_vme_baseaddress,
-        'a': demo.set_address_modifier,
-        'd': demo.set_data_width,
-        'r': demo.read_cycle,
-        'w': demo.write_cycle,
-        'R': demo.read_register,
-        'W': demo.write_register,
-        't': demo.blt_read_cycle,
-        'q': _quit,
-    }
-
-    while True:
-        print('------------------------------------------------------------------------------------')
-        print('Menu')
-        print('------------------------------------------------------------------------------------')
-        for k, function in menu_items.items():
-            print(k, function.__doc__)
-        selection = input('Please enter your selection: ')
-        selected_value = menu_items.get(selection)
-        if selected_value is None:
-            print('Invalid selection')
-            continue
-        selected_value()
